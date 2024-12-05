@@ -1,78 +1,61 @@
 import '@src/Popup.css';
-import { useStorage, withErrorBoundary, withSuspense } from '@extension/shared';
-import { exampleThemeStorage } from '@extension/storage';
-import type { ComponentPropsWithoutRef } from 'react';
-
-const notificationOptions = {
-  type: 'basic',
-  iconUrl: chrome.runtime.getURL('icon-34.png'),
-  title: 'Injecting content script error',
-  message: 'You cannot inject script here!',
-} as const;
+import './Popup.css';
+import { withErrorBoundary, withSuspense } from '@extension/shared';
+import { useState, useEffect } from 'react';
 
 const Popup = () => {
-  const theme = useStorage(exampleThemeStorage);
-  const isLight = theme === 'light';
-  const logo = isLight ? 'popup/logo_vertical.svg' : 'popup/logo_vertical_dark.svg';
-  const goGithubSite = () =>
-    chrome.tabs.create({ url: 'https://github.com/Jonghakseo/chrome-extension-boilerplate-react-vite' });
+  const [normalText, setNormalText] = useState('');
+  const [platformText, setPlatformText] = useState('');
+  const [activeTab, setActiveTab] = useState('normal');
 
-  const injectContentScript = async () => {
-    const [tab] = await chrome.tabs.query({ currentWindow: true, active: true });
+  const handleTabClick = (tab: 'normal' | 'platform') => {
+    setActiveTab(tab);
+  };
 
-    if (tab.url!.startsWith('about:') || tab.url!.startsWith('chrome:')) {
-      chrome.notifications.create('inject-error', notificationOptions);
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (activeTab === 'normal') {
+      console.log(e.target.value, 'normal');
+      chrome.storage.local.set({ normalText: e.target.value });
+      setNormalText(e.target.value);
+    } else {
+      chrome.storage.local.set({ platformText: e.target.value });
+      setPlatformText(e.target.value);
     }
+    sendText();
+  };
 
-    await chrome.scripting
-      .executeScript({
-        target: { tabId: tab.id! },
-        files: ['/content-runtime/index.iife.js'],
-      })
-      .catch(err => {
-        // Handling errors related to other paths
-        if (err.message.includes('Cannot access a chrome:// URL')) {
-          chrome.notifications.create('inject-error', notificationOptions);
-        }
-      });
+  useEffect(() => {
+    chrome.storage.local.get(['normalText', 'platformText'], result => {
+      setNormalText(result.normalText || '');
+      setPlatformText(result.platformText || '');
+    });
+  }, []);
+
+  const sendText = () => {
+    chrome.runtime.sendMessage({ type: 'getData' });
   };
 
   return (
-    <div className={`App ${isLight ? 'bg-slate-50' : 'bg-gray-800'}`}>
-      <header className={`App-header ${isLight ? 'text-gray-900' : 'text-gray-100'}`}>
-        <button onClick={goGithubSite}>
-          <img src={chrome.runtime.getURL(logo)} className="App-logo" alt="logo" />
-        </button>
-        <p>
-          Edit <code>pages/popup/src/Popup.tsx</code>
-        </p>
+    <div className="my-floating-element">
+      <div className="tab-container">
         <button
-          className={
-            'font-bold mt-4 py-1 px-4 rounded shadow hover:scale-105 ' +
-            (isLight ? 'bg-blue-200 text-black' : 'bg-gray-700 text-white')
-          }
-          onClick={injectContentScript}>
-          Click to inject Content Script
+          className={`tab-button ${activeTab === 'normal' ? 'active' : ''}`}
+          onClick={() => handleTabClick('normal')}>
+          普通
         </button>
-        <ToggleButton>Toggle theme</ToggleButton>
-      </header>
+        <button
+          className={`tab-button ${activeTab === 'platform' ? 'active' : ''}`}
+          onClick={() => handleTabClick('platform')}>
+          平台
+        </button>
+      </div>
+      <textarea
+        className="text-content"
+        placeholder="请输入内容"
+        value={activeTab === 'normal' ? normalText : platformText}
+        onChange={handleTextChange}
+      />
     </div>
-  );
-};
-
-const ToggleButton = (props: ComponentPropsWithoutRef<'button'>) => {
-  const theme = useStorage(exampleThemeStorage);
-  return (
-    <button
-      className={
-        props.className +
-        ' ' +
-        'font-bold mt-4 py-1 px-4 rounded shadow hover:scale-105 ' +
-        (theme === 'light' ? 'bg-white text-black shadow-black' : 'bg-black text-white')
-      }
-      onClick={exampleThemeStorage.toggle}>
-      {props.children}
-    </button>
   );
 };
 

@@ -1,9 +1,11 @@
 import 'webextension-polyfill';
-import { exampleThemeStorage } from '@extension/storage';
 
-exampleThemeStorage.get().then(theme => {
-  console.log('theme', theme);
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'getData') {
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+      if (tabs.length > 0 && tabs[0].id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'setData' });
+      }
+    });
+  }
 });
-
-console.log('background loaded');
-console.log("Edit 'chrome-extension/src/background/index.ts' and save to reload.");
